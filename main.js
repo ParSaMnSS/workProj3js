@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-// -- Create sliders
+// -- Create sliders (unchanged)
 const rotationSlider = document.createElement('input');
 rotationSlider.type = 'range';
 rotationSlider.min = '0.001';
@@ -31,36 +31,64 @@ document.body.appendChild(zoomSlider);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x808080);
 
-const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000);
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.set(0, 0, 4);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.shadowMap.enabled = true; // Enable shadow maps
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
+// -- Add directional light from the top right --
+const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+directionalLight.position.set(5, 5, 5); // Top right light source
+directionalLight.castShadow = true;
+
+// Optional: adjust shadow quality
+directionalLight.shadow.mapSize.width = 1024;
+directionalLight.shadow.mapSize.height = 1024;
+directionalLight.shadow.camera.near = 0.5;
+directionalLight.shadow.camera.far = 500;
+scene.add(directionalLight);
+
+// -- Add an ambient light for softer shadows (optional) --
+const ambientLight = new THREE.AmbientLight(0x404040);
+scene.add(ambientLight);
+
 // -- Create BoxGeometry with multiple materials --
+// Use MeshStandardMaterial (or MeshLambertMaterial) so that lighting/shadows are effective.
 const geometry = new THREE.BoxGeometry(1, 1, 1); 
-// By default, BoxGeometry will create 6 "groups", each assigned a unique material index.
 
 const defaultColor = 0x00ff00;
 const hoverColor = 0xff0000;
 const materials = [
-  new THREE.MeshBasicMaterial({ color: defaultColor }), // +X side
-  new THREE.MeshBasicMaterial({ color: defaultColor }), // -X side
-  new THREE.MeshBasicMaterial({ color: defaultColor }), // +Y side
-  new THREE.MeshBasicMaterial({ color: defaultColor }), // -Y side
-  new THREE.MeshBasicMaterial({ color: defaultColor }), // +Z side
-  new THREE.MeshBasicMaterial({ color: defaultColor }), // -Z side
+  new THREE.MeshStandardMaterial({ color: defaultColor }), // +X side
+  new THREE.MeshStandardMaterial({ color: defaultColor }), // -X side
+  new THREE.MeshStandardMaterial({ color: defaultColor }), // +Y side
+  new THREE.MeshStandardMaterial({ color: defaultColor }), // -Y side
+  new THREE.MeshStandardMaterial({ color: defaultColor }), // +Z side
+  new THREE.MeshStandardMaterial({ color: defaultColor }), // -Z side
 ];
 
 const cube = new THREE.Mesh(geometry, materials);
+cube.castShadow = true;   // This allows the cube to block the light and create a shadow.
+cube.receiveShadow = true; // This lets the cube show shadows that might fall on it.
 scene.add(cube);
 
-// Optional wireframe
+// Optional wireframe (won't cast/receive shadows, but remains visible)
 const wireframe = new THREE.WireframeGeometry(geometry);
 const lineMaterial = new THREE.LineBasicMaterial({ color: 0x000000 });
 const lineSegments = new THREE.LineSegments(wireframe, lineMaterial);
 cube.add(lineSegments);
+
+// -- Add a ground plane to catch shadows (optional) --
+const planeGeometry = new THREE.PlaneGeometry(10, 10);
+const planeMaterial = new THREE.MeshStandardMaterial({ color: 0x808080 });
+const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+plane.rotation.x = -Math.PI / 2; // Rotate to be horizontal
+plane.position.y = -1.5;         // Position below the cube
+plane.receiveShadow = true;      // Plane receives shadows
+scene.add(plane);
 
 // -- Sliders & Animation Control --
 let rotationSpeed = 0.001;
@@ -120,14 +148,10 @@ const raycaster = new THREE.Raycaster();
 const rayMouse = new THREE.Vector2();
 let currentHoveredIndex = -1;
 
-// This function finds which group the faceIndex belongs to, so we know which material index was hit.
 function getMaterialIndexFromFaceIndex(geometry, faceIndex) {
-  // Each 'face' is actually a triangle in the index buffer
-  const indexPos = faceIndex * 3; // 3 vertices per triangle
+  const indexPos = faceIndex * 3;
   for (let i = 0; i < geometry.groups.length; i++) {
     const group = geometry.groups[i];
-    // group.start is the starting index in the index buffer
-    // group.count is how many indices belong to this group
     if (indexPos >= group.start && indexPos < group.start + group.count) {
       return group.materialIndex;
     }
@@ -141,7 +165,7 @@ function updateHover() {
 
   if (intersects.length > 0) {
     const intersect = intersects[0];
-    const faceIndex = intersect.faceIndex; // The index of the triangle
+    const faceIndex = intersect.faceIndex;
     const materialIndex = getMaterialIndexFromFaceIndex(geometry, faceIndex);
 
     if (materialIndex !== null && materialIndex !== currentHoveredIndex) {
@@ -149,12 +173,10 @@ function updateHover() {
       if (currentHoveredIndex !== -1) {
         cube.material[currentHoveredIndex].color.set(defaultColor);
       }
-      // Color the new hovered face
       currentHoveredIndex = materialIndex;
       cube.material[materialIndex].color.set(hoverColor);
     }
   } else {
-    // Not hovering any face - reset
     if (currentHoveredIndex !== -1) {
       cube.material[currentHoveredIndex].color.set(defaultColor);
       currentHoveredIndex = -1;
@@ -164,24 +186,19 @@ function updateHover() {
 
 // -- Animation Loop --
 function animate() {
-  // Rotate the cube
   cube.rotation.x += rotationSpeed;
   cube.rotation.y += rotationSpeed;
 
-  
-  // Smooth camera movement
   const targetX = originalCameraPosition.x + targetOffsetX;
   const targetY = originalCameraPosition.y + targetOffsetY;
   camera.position.x += (targetX - camera.position.x) * smoothing;
   camera.position.y += (targetY - camera.position.y) * smoothing;
-  // Hover check
+
   updateHover();
-  
   renderer.render(scene, camera);
   requestAnimationFrame(animate);
 }
 
-// -- Handle window resize --
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
