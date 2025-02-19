@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { FBXLoader } from 'three/examples/jsm/Addons.js';
 
 // -- Create sliders (unchanged)
 const rotationSlider = document.createElement('input');
@@ -188,6 +189,7 @@ function updateHover() {
 function animate() {
   cube.rotation.x += rotationSpeed;
   cube.rotation.y += rotationSpeed;
+  cube.rotation.z += rotationSpeed;
 
   const targetX = originalCameraPosition.x + targetOffsetX;
   const targetY = originalCameraPosition.y + targetOffsetY;
